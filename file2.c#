@@ -1,0 +1,128 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using Emgu.CV;
+using Emgu.CV.CvEnum;
+using Emgu.CV.Structure;
+using Emgu.CV.Util;
+using Emgu.CV.Videoio;
+
+namespace QRCodeDetector
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            int capDevice = 0;
+            int capWidth = 960;
+            int capHeight = 540;
+
+            VideoCapture cap = new VideoCapture(capDevice);
+            cap.Set(CapProp.FrameWidth, capWidth);
+            cap.Set(CapProp.FrameHeight, capHeight);
+
+            QRCodeDetector qrCodeDetector = new QRCodeDetector();
+
+            double elapsedMillis = 0;
+
+            while (true)
+            {
+                double startTime = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
+
+                Mat image = new Mat();
+                cap.Read(image);
+
+                if (image.IsEmpty)
+                {
+                    break;
+                }
+
+                Mat debugImage = image.Clone();
+
+                DetectAndDecode(qrCodeDetector, debugImage, out List<string> qrCodeTexts, out List<RotatedRect> qrCodeCorners);
+
+                DrawTags(debugImage, qrCodeTexts, qrCodeCorners, elapsedMillis);
+
+                elapsedMillis = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond - startTime;
+
+                CvInvoke.Imshow("QR Code Detector Demo", debugImage);
+
+                int key = CvInvoke.WaitKey(1);
+                if (key == 27) // ESC
+                {
+                    break;
+                }
+            }
+
+            CvInvoke.DestroyAllWindows();
+        }
+
+        static void DetectAndDecode(QRCodeDetector qrCodeDetector, Mat image, out List<string> qrCodeTexts, out List<RotatedRect> qrCodeCorners)
+        {
+            qrCodeTexts = new List<string>();
+            qrCodeCorners = new List<RotatedRect>();
+
+            using (VectorOfVectorOfPoint contours = new VectorOfVectorOfPoint())
+            {
+                Mat grayImage = new Mat();
+                CvInvoke.CvtColor(image, grayImage, ColorConversion.Bgr2Gray);
+                CvInvoke.GaussianBlur(grayImage, grayImage, new Size(5, 5), 0);
+
+                Mat cannyImage = new Mat();
+                CvInvoke.Canny(grayImage, cannyImage, 100, 200);
+
+                CvInvoke.FindContours(cannyImage, contours, null, RetrType.List, ChainApproxMethod.ChainApproxSimple);
+
+                for (int i = 0; i < contours.Size; i++)
+                {
+                    VectorOfPoint contour = contours[i];
+
+                    if (contour.Size == 4)
+                    {
+                        VectorOfPoint approx = new VectorOfPoint();
+                        CvInvoke.ApproxPolyDP(contour, approx, CvInvoke.ArcLength(contour, true) * 0.02, true);
+
+                        if (approx.Size == 4 && CvInvoke.IsContourConvex(approx))
+                        {
+                            RotatedRect box = CvInvoke.MinAreaRect(approx);
+                            PointF[] boxPoints = CvInvoke.BoxPoints(box);
+
+                            Point[] points = Array.ConvertAll(boxPoints, Point.Round);
+                            List<Point> sortedPoints = points.OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
+
+                            qrCodeCorners.Add(box);
+                            string qrCodeText = qrCodeDetector.DetectAndDecode(image, out Mat _);
+                            qrCodeTexts.Add(qrCodeText);
+                        }
+                    }
+                }
+            }
+        }
+
+        static void DrawTags(Mat image, List<string> qrCodeTexts, List<RotatedRect> qrCodeCorners, double elapsedMillis)
+        {
+            for (int i = 0; i < qrCodeTexts.Count; i++)
+            {
+                string text = qrCodeTexts[i];
+                RotatedRect corner = qrCodeCorners[i];
+
+                PointF[] boxPoints = CvInvoke.BoxPoints(corner);
+
+                Point[] points = Array.ConvertAll(boxPoints, Point.Round);
+
+                // Draw each edge
+                CvInvoke.Line(image, points[0], points[1], new MCvScalar(255, 0, 0), 2);
+                CvInvoke.Line(image, points[1], points[2], new MCvScalar(255, 0, 0), 2);
+                CvInvoke.Line(image, points[2], points[3], new MCvScalar(0, 255, 0), 2);
+                CvInvoke.Line(image, points[3], points[0], new MCvScalar(0, 255, 0), 2);
+
+                // Draw text
+                CvInvoke.PutText(image, text, points[0], FontFace.HersheySimplex, 0.5, new MCvScalar(0, 255, 0), 1, LineType.AntiAlias);
+            }
+
+            // Draw elapsed time
+            CvInvoke.PutText(image, "Elapsed Time: " + elapsedMillis.ToString("F1") + "ms", new Point(10, 30), FontFace.HersheySimplex, 0.8, new MCvScalar(0, 255, 0), 2, LineType.AntiAlias);
+        }
+    }
+}
