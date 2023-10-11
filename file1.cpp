@@ -1,9 +1,9 @@
+
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <opencv2/wechat_qrcode/wechat_qrcode.hpp>
 #include <vector>
 #include <ctime>
-
 struct QRCodeResult {
     std::string text;
     std::vector<cv::Point2f> corners;
@@ -13,22 +13,22 @@ QRCodeResult decodeQRCode(const cv::Mat& image, cv::wechat_qrcode_WeChatQRCode& 
     QRCodeResult result;
     std::vector<std::vector<std::string>> decoded_info;
 
-    result.text = "";
+    result.text = " ";
     result.corners = {};
 
     qrcode_detector.detectAndDecode(image, decoded_info);
 
-    if (!decoded_info.empty() && !decoded_info[0].empty()) {
-        result.text = decoded_info[0][0];
-        result.corners = qrcode_detector.getCorner();
+    if (!decoded_info.empty()&& !decoded_info[0].empty()) {
+        result.text =decoded_info[0][0];
+        result.corners =qrcode_detector.getCorner();
     }
 
     return result;
 }
 
 void drawTags(cv::Mat& image, const QRCodeResult& qrcode_result, double elapsed_time) {
-    if (!qrcode_result.text.empty()) {
-        std::string text = qrcode_result.text;
+    if (!qrcode_result.text.empty()){
+        std::string text =qrcode_result.text;
         std::vector<cv::Point2f> corners = qrcode_result.corners;
 
         cv::Point2i corner_01(static_cast<int>(corners[0].x), static_cast<int>(corners[0].y));
@@ -46,7 +46,7 @@ void drawTags(cv::Mat& image, const QRCodeResult& qrcode_result, double elapsed_
         cv::putText(image, text, cv::Point(10, 55), cv::FONT_HERSHEY_SIMPLEX, 0.75, cv::Scalar(0, 255, 0), 2, cv::LINE_AA);
     }
 
-    // Draw elapsed time
+    
     cv::putText(image, "Elapsed Time: " + std::to_string(elapsed_time * 1000) + "ms", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 255, 0), 2, cv::LINE_AA);
 }
 
@@ -90,4 +90,31 @@ int main() {
     }
 
     return 0;
+}
+
+        static void DrawTags(Mat image, List<string> qrCodeTexts, List<RotatedRect> qrCodeCorners, double elapsedMillis)
+        {
+            for (int i = 0; i < qrCodeTexts.Count; i++)
+            {
+                string text = qrCodeTexts[i];
+                RotatedRect corner = qrCodeCorners[i];
+
+                PointF[] boxPoints = CvInvoke.BoxPoints(corner);
+
+                Point[] points = Array.ConvertAll(boxPoints, Point.Round);
+
+      
+                CvInvoke.Line(image, points[0], points[1], new MCvScalar(255, 0, 0), 2);
+                CvInvoke.Line(image, points[1], points[2], new MCvScalar(255, 0, 0), 2);
+                CvInvoke.Line(image, points[2], points[3], new MCvScalar(0, 255, 0), 2);
+                CvInvoke.Line(image, points[3], points[0], new MCvScalar(0, 255, 0), 2);
+
+
+                CvInvoke.PutText(image, text, points[0], FontFace.HersheySimplex, 0.5, new MCvScalar(0, 255, 0), 1, LineType.AntiAlias);
+            }
+
+          
+            CvInvoke.PutText(image, "Elapsed Time: " + elapsedMillis.ToString("F1") + "ms", new Point(10, 30), FontFace.HersheySimplex, 0.8, new MCvScalar(0, 255, 0), 2, LineType.AntiAlias);
+        }
+    }
 }
